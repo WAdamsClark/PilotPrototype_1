@@ -7,5 +7,6 @@
     },
     "particle.targetDevice": "WasteWizer_Pilot",
     "particle.firmwareVersion": "1.5.2",
-    "particle.targetPlatform": "boron"
+    "particle.targetPlatform": "boron",
+    "C_Cpp.errorSquiggles": "Enabled"
 }
