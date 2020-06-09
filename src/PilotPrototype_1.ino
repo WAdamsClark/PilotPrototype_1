@@ -4,6 +4,7 @@
  * Author: Adams Clark, Thomas Spencer
  * Date: 6/9/2020
  */
+// Thomas Is TESTING HERE
 
 int led = D7;   // LED pin on Boron development board
 int sgPin = A0; // Strain Gauge pin for analogRead
