@@ -13,15 +13,27 @@ const int ACCEL_REG_ADDR = 0x3B;        // I2C address of ACCEL_XOUT_H
 
 /*========== Communication Variables ==========*/
 int result = 0;
+int timestep = 100;                     // Determines how quickly main loop cycles [ms]
 
 /*========== Data Variables ==========*/
+// Constants
 const float accelSensitivity2g = 16384;         // Sensitivity of the accelerometer at +/-2g [LSB/g]
 const float gyroSensitivity250 = 131;           // Resolution of the gyroscope at +/-250deg/s [LSB/deg/s]
 const float tempSensitivityUntrimmed = 340;     // Sensitivity of the temperature sensor when untrimmed at 340 [LSB/deg C]
 const float tempOffset = 36.53;                 // Offset value needed for calculating temperature in deg C
-const float accelCalibration_1[3] = {-0.010359028, 0.224212988, -0.231500846};   // Calibration values for accelerometer on slave device 1
-const float gyroCalibration_1[3] = {3.396479224, 0.218546759, -1.138894073};          // Calibration values for gyroscope on slave device 1
-
+float accelMagnitude = 0;                       // Holds magnitude of accelerometer gravity vector
+const float accelCalibration_1[3] = {-0.010359028, 0.224212988, -0.025359311};  // Calibration values for accelerometer on slave device 1
+const float gyroCalibration_1[3] = {3.396479224, 0.218546759, -1.138894073};    // Calibration values for gyroscope on slave device 1
+const int num = 5;         // length of buffers used to hold previous measurements
+float accelBuffer[3][num];  // Buffer to hold previous accelerometer measurements with [x][y], x holds values for each axis
+float gyroBuffer[3][num];   // Buffer to hold previous gyroscope measurements with [x][y], x holds values for each axis
+int y = 0;                  // Index variable to keep track of [y] place in accelBuffer and gyroBuffer
+int startup = 0;            // State variable to determine if first time running through filter
+float est[3];               // Vector to hold current angle estimates
+float sumAccel = 0;         // Sum of all values in accelBuffer
+float sumGyro = 0;          // Sum of all values in gyroBuffer
+float avgAccel = 0;         // Average of all values in accelBuffer
+float avgGyro = 0;          // Average of all values in gyroBuffer
 
 /*========== Configure MPU-6050 ==========*/
 void configSensor(int slaveAddress, int subAddress, int data){
@@ -120,19 +132,49 @@ int sensorRead(int slaveAddress, float *accelData, float &temp, float *gyroData)
     gyroData[2] = ((float) zGyrRaw)/gyroSensitivity250;
 
     // Normalize and Calibrate Data
-    float accelMagnitude = sqrt(sq(accelData[0]) + sq(accelData[1]) + sq(accelData[2]));
+    accelMagnitude = sqrt(sq(accelData[0]) + sq(accelData[1]) + sq(accelData[2]));
     for( int i = 0; i < 3; i++){
         accelData[i] = accelData[i]/accelMagnitude;             // Normalize accelerometer data
-        //accData[i] = accelData[i] + accelCalibration_1[i];    // Calibrate accelerometer data with offset
+        accelData[i] = accelData[i] + accelCalibration_1[i];    // Calibrate accelerometer data with offset
         gyroData[i] = gyroData[i] + gyroCalibration_1[i];     // Calibrate gyroscope data with offset
     }
-
     return result;
 }
 
 /*========== Filter accelerometer data using gyroscope data ==========*/
-void  filterData(float *accelData, float *gyroData){
+void  filterData(float *accelData, float *gyroData, int &startup){
+    // Store new sensor values in buffers
+    for(int i = 0; i < 3; i++){
+            accelBuffer[i][y] = accelData[i];   // Store newest accelData values in first line of buffer
+            gyroBuffer[i][y] = gyroData[i];     // Store newest gyroData values in first line of buffer
+        }
+   
+    // If this is the first time running the filter, there is no old data, so our best estimate is based on our current data
+    if(startup == 0){
+        // Store new accelBuffer values in estimate
+        for(int i = 0; i < 3; i++){
+            est[i] = accelBuffer[i][y];  // Use current accelerometer data to get current estimate
+        }
+        y++;            // Increment row in buffers
+        startup = 1;    // Set to 1 so this section is not repeated
+    }
+    else{
+        // Take the average of accelBuffer and gyroBuffer
+        // Sum all values in each
+        for(int i = 0; i < num; i++){
+            sumAccel += accelBuffer[i][y];
+            sumGyro += gyroBuffer[i][y];
+        }
+        avgAccel = sumAccel/num;
+        avgGyro = sumGyro/num;
 
+        y++;    // Increment row in buffers
+        
+        // If we reach the end of the buffers, reset to 0
+        if(x >= num){
+            x = 0;
+        }
+    }
 }
 
 /*========== Toggle the LED on or off depending on the given command ==========*/

@@ -18,6 +18,7 @@
  * values, instead having each device run the same firmware which checks the calibration file for that individual device's calibration
  * values. Additionally, this file will likely include geometry data for the container that each individual device is mounted on.
  */
+// Thomas Is TESTING HERE
 
 /*========== Header Includes ==========*/
 #include "Wire.h"                 // This library allows I2C communication
@@ -27,7 +28,7 @@
 /*========== Device System Settings ==========*/
 void setup();
 void loop();
-#line 22 "c:/Users/adams/OneDrive/Documents/GitHub/ParticleWorkbench/PilotPrototype_1/src/PilotPrototype_1.ino"
+#line 23 "c:/Users/adams/OneDrive/Documents/GitHub/ParticleWorkbench/PilotPrototype_1/src/PilotPrototype_1.ino"
 SYSTEM_MODE(SEMI_AUTOMATIC);
 
 /*========== Data Variables ==========*/
@@ -90,6 +91,8 @@ void loop() {
   Serial.printlnf("%f", gyroData[2]);
   Serial.println();
 */
-Serial.printlnf("%f", accelData[2]);
+  // Temperature Sensor
+  Serial.printlnf("%f", temp_C);
+
   delay(100);  // Wait one millisecond
 }

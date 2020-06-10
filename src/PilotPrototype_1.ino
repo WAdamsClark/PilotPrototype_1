@@ -65,7 +65,7 @@ void loop() {
   
   // Read in data from MPU-6050
   result = sensorRead(MPU_SLAVE_ADDR_1, accelData, temp_C, gyroData);  
-/*
+
   // Print data to the serial monitor
   // Strain gauge
   Serial.printlnf("%d", sgRawValue);
@@ -81,7 +81,9 @@ void loop() {
   Serial.printlnf("%f", gyroData[1]);
   Serial.printlnf("%f", gyroData[2]);
   Serial.println();
-*/
-Serial.printlnf("%f", accelData[2]);
-  delay(100);  // Wait one millisecond
+
+  // Temperature Sensor
+  //Serial.printlnf("%f", temp_C);  // This does not work yet!
+
+  delay(timestep);  // Wait one millisecond
 }
