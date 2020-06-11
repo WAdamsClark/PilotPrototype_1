@@ -73,7 +73,10 @@ void loop() {
   Particle.publish("dumpster-loading", weightStr, PRIVATE); // Publish data as event to Particle Cloud
   
   // Read in data from MPU-6050
-  result = sensorRead(MPU_SLAVE_ADDR_1, accelData, temp_C, gyroData);  
+  result = sensorRead(MPU_SLAVE_ADDR_1, accelData, temp_C, gyroData);
+
+  // Filter data and determine global angular orientation
+  filterData(accelData, gyroData, startup, estimates, angles);  
 /*
   // Print data to the serial monitor
   // Strain gauge
@@ -90,9 +93,15 @@ void loop() {
   Serial.printlnf("%f", gyroData[1]);
   Serial.printlnf("%f", gyroData[2]);
   Serial.println();
-*/
-  // Temperature Sensor
-  Serial.printlnf("%f", temp_C);
 
-  delay(100);  // Wait one millisecond
+  // Temperature Sensor
+  //Serial.printlnf("%f", temp_C);  // This does not work yet!
+*/
+  // Angles
+  Serial.printlnf("%f", angles[0]);
+  Serial.printlnf("%f", angles[1]);
+  Serial.printlnf("%f", angles[2]);
+  Serial.println();
+
+  delay(timestep);  // Wait one millisecond
 }
