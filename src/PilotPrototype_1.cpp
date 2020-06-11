@@ -26,20 +26,23 @@
 #include "PeripheralFunctions.h"  // Holds all peripheral functions for reading in data from MPU-6050, etc.
 
 /*========== Device System Settings ==========*/
+//SYSTEM_MODE(SEMI_AUTOMATIC);
 void setup();
 void loop();
-#line 23 "c:/Users/adams/OneDrive/Documents/GitHub/ParticleWorkbench/PilotPrototype_1/src/PilotPrototype_1.ino"
-SYSTEM_MODE(SEMI_AUTOMATIC);
+#line 24 "c:/Users/adams/OneDrive/Documents/GitHub/ParticleWorkbench/PilotPrototype_1/src/PilotPrototype_1.ino"
+SYSTEM_MODE(AUTOMATIC);
 
 /*========== Data Variables ==========*/
-int sgRawValue = 0;   // Raw value obtained by performing analogRead(sgPin)
+int sgRawValue = 0;     // Raw value obtained by performing analogRead(sgPin)
 char weightStr[30];     // String to which sgRawValue is cast for use when pushing events to Particle Cloud
 float sgWeight = 0;     // Weight value calculated using strain gauge reading
 float sensCoeff = 2.1;  // Coefficient for converting sgRawValue to real-world weight value (from datasheet)
 float accelData[3];     // Vector for accelerometer raw data
 float gyroData[3];      // Vector for gyroscope raw data
 float temp_C = 0;       // Variable for temperature data [deg C]
-
+char angleX[30];
+char angleY[30];
+char angleZ[30];
 
 /*========== Setup ==========*/
 void setup() {
@@ -60,6 +63,16 @@ void setup() {
   Particle.variable("StringWeight", weightStr);
   Particle.publish("dumpster-loading", weightStr, PRIVATE);
   Particle.function("led", ledToggle);
+  // Variables to hold current angle estimates
+  sprintf(angleX, "%f", angles[0]);
+  sprintf(angleY, "%f", angles[1]);
+  sprintf(angleZ, "%f", angles[2]);
+  Particle.variable("angleX", angleX);
+  Particle.variable("angleY", angleY);
+  Particle.variable("angleZ", angleZ);
+  // Functions to use when wanting fresh data
+  //Particle.function("sensorRead", sensorRead);
+
 }
 
 /*========== Main Loop ===========*/
@@ -77,26 +90,11 @@ void loop() {
 
   // Filter data and determine global angular orientation
   filterData(accelData, gyroData, startup, estimates, angles);  
-/*
+
   // Print data to the serial monitor
   // Strain gauge
   Serial.printlnf("%d", sgRawValue);
 
-  // Accelerometer
-  Serial.printlnf("%f", accelData[0]);
-  Serial.printlnf("%f", accelData[1]);
-  Serial.printlnf("%f", accelData[2]);
-  Serial.println();
-
-  // Gyroscope
-  Serial.printlnf("%f", gyroData[0]);
-  Serial.printlnf("%f", gyroData[1]);
-  Serial.printlnf("%f", gyroData[2]);
-  Serial.println();
-
-  // Temperature Sensor
-  //Serial.printlnf("%f", temp_C);  // This does not work yet!
-*/
   // Angles
   Serial.printlnf("%f", angles[0]);
   Serial.printlnf("%f", angles[1]);
