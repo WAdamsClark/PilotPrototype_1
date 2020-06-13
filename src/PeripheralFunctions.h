@@ -12,7 +12,7 @@ const int NRML_PWR = 0;                 // Send 0 for normal mode on wakeup
 const int ACCEL_REG_ADDR = 0x3B;        // I2C address of ACCEL_XOUT_H
 
 /*========== Communication Variables ==========*/
-const float timestep = 5000;             // Determines how quickly main loop cycles [ms]
+const float timestep = 100;             // Determines how quickly main loop cycles [ms]
 int result = 0;                         // Result to be returned at end of certain functions
 
 

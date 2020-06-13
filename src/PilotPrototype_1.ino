@@ -20,8 +20,8 @@
 #include "PeripheralFunctions.h"  // Holds all peripheral functions for reading in data from MPU-6050, etc.
 
 /*========== Device System Settings ==========*/
-//SYSTEM_MODE(SEMI_AUTOMATIC);
-SYSTEM_MODE(AUTOMATIC);
+SYSTEM_MODE(SEMI_AUTOMATIC);
+//SYSTEM_MODE(AUTOMATIC);
 
 /*========== Data Variables ==========*/
 int sgRawValue = 0;     // Raw value obtained by performing analogRead(sgPin)
@@ -34,6 +34,10 @@ float temp_C = 0;       // Variable for temperature data [deg C]
 char angleX[30];        // String to hold angleX values for Particle Variable sharing
 char angleY[30];        // String to hold angleY values for Particle Variable sharing
 char angleZ[30];        // String to hold angleZ values for Particle Variable sharing
+int sgBuff[20];
+int sum = 0;
+int x = 0;
+int avgVal = 0;
 
 /*========== Setup ==========*/
 void setup() {
@@ -47,6 +51,7 @@ void setup() {
   // Set up GPIO
   pinMode(led, OUTPUT);   // LED pin as output
   // Note: reading from analog pins does not require pinMode()
+  digitalWrite(led, HIGH);
   
   // Particle Cloud Variables, Functions, and Publishing
   Particle.variable("containerWeight", sgRawValue); // Declare Particle.variable to access value from the cloud
@@ -72,6 +77,27 @@ void loop() {
   sgRawValue = analogRead(sgPin);  // read the analogPin
   sgWeight = 2.1*(((float) sgRawValue/4095)*3.3); // AnalogRead ranges from 0-4095, so we must convert to a voltage between 0-3.3 and multiply by sensitivity coefficient
   
+  // Averaging for strain gauge values
+  // Subtract last value from current sum
+  sum = sum - sgBuff[x];
+  // Read the input pin
+  sgBuff[x] = analogRead(sgPin);
+  // Analog output voltage ranges from 0-3.5, but analogRead references against 5, so put in new reference, and multiply by sensing coefficient
+  sgBuff[x] = sensCoeff*((sgBuff[x]/5)*3.5);
+  // Add new reading to running total
+  sum = sum + sgBuff[x]; 
+  // Increment place in buffer
+  x = x + 1;
+
+  // If we reach the end of our buffer, reset it to 0
+  if (x >= 20)
+  {
+    x = 0;
+  }
+  
+  // Calculate value average
+  avgVal = sum/20;
+
   // Particle Event Publishing
   sprintf(weightStr, "%d", sgRawValue);  // Update string variables
   Particle.publish("dumpster-loading", weightStr, PRIVATE); // Publish data as event to Particle Cloud
@@ -84,7 +110,7 @@ void loop() {
 
   // Print data to the serial monitor
   // Strain gauge
-  Serial.printlnf("%d", sgRawValue);
+  Serial.printlnf("%d", avgVal);
 
   // Angles
   Serial.printlnf("%f", angles[0]);
