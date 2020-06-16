@@ -6,120 +6,180 @@
  * 
  * 
  * Notes: 
- * In the future, we will likely want to have some calibration code that we can run on a bunch of IMU devices at once to get
+ * In the future, we will likely want to have some separate calibration code that we can run on a bunch of IMUs at once to get
  * offsets for accelerometer and gyroscope readings that can then be stored in an external text file and referenced by each 
  * device while in the field. This will alow us to not have to push firmware that is individually written with hard-coded calibration
  * values, instead having each device run the same firmware which checks the calibration file for that individual device's calibration
  * values. Additionally, this file will likely include geometry data for the container that each individual device is mounted on.
  */
-// Thomas Is TESTING HERE
 
 /*========== Header Includes ==========*/
 #include "Wire.h"                 // This library allows I2C communication
-#include "Math.h"                 // This library allows certain mathematical functions to be used (i.e., sqrt, sq, etc.)
 #include "PeripheralFunctions.h"  // Holds all peripheral functions for reading in data from MPU-6050, etc.
 
 /*========== Device System Settings ==========*/
-SYSTEM_MODE(SEMI_AUTOMATIC);
-//SYSTEM_MODE(AUTOMATIC);
+//SYSTEM_MODE(SEMI_AUTOMATIC);  // Uncomment this line when attempting to test locally 
+SYSTEM_MODE(AUTOMATIC);             // Comment out this line when attempting to test locally
+SystemSleepConfiguration config;    // Create instantiation of sleep configuration for use when making calls to sleep
 
-/*========== Data Variables ==========*/
-int sgRawValue = 0;     // Raw value obtained by performing analogRead(sgPin)
-char weightStr[30];     // String to which sgRawValue is cast for use when pushing events to Particle Cloud
-float sgWeight = 0;     // Weight value calculated using strain gauge reading
-float sensCoeff = 2.1;  // Coefficient for converting sgRawValue to real-world weight value (from datasheet)
-float accelData[3];     // Vector for accelerometer raw data
-float gyroData[3];      // Vector for gyroscope raw data
-float temp_C = 0;       // Variable for temperature data [deg C]
-char angleX[30];        // String to hold angleX values for Particle Variable sharing
-char angleY[30];        // String to hold angleY values for Particle Variable sharing
-char angleZ[30];        // String to hold angleZ values for Particle Variable sharing
-int sgBuff[20];
-int sum = 0;
-int x = 0;
-int avgVal = 0;
+/*========== Particle Data Variables ==========*/
+// MPU-6050 strings for Particle Cloud Events
+char angleStr1[50];
+char angleStr2[50];
+// Strain gauge strings for Particle Cloud events
+char sgLi1[5];
+char sgLi2[5];
+char sgLo1[5];
+char sgRi1[5];
+char sgRi2[5];
+char sgRo1[5];
 
+/*========== Strain Gauge Data Variables ==========*/
+// Buffers to hold previous strain gauge readings
+int sgBuffLi1[sgNum];   
+int sgBuffLi2[sgNum];
+int sgBuffLo1[sgNum];
+int sgBuffRi1[sgNum];
+int sgBuffRi2[sgNum];
+int sgBuffRo1[sgNum];
+// Output values from filtering strain gauge readings
+int sgValLi1 = 0;
+int sgValLi2 = 0;
+int sgValLo1 = 0;
+int sgValRi1 = 0;
+int sgValRi2 = 0;
+int sgValRo1 = 0;
+// Reference values for position in strain gauge buffers
+int sgXLi1 = 0;
+int sgXLi2 = 0;
+int sgXLo1 = 0;
+int sgXRi1 = 0;
+int sgXRi2 = 0;
+int sgXRo1 = 0;
+
+/*========== MPU-6050 Data Variables ==========*/
+// Angles about each axis determined from accelerometer
+float angles1[3];
+float angles2[3];
+// Vector for raw accelerometer data
+float accelData1[3];
+float accelData2[3];
+// Vector for raw gyroscope data
+float gyroData1[3];
+float gyroData2[3];
+// Variable for temperature data [deg C]
+float temp_C1 = 0;
+float temp_C2 = 0;
+// Buffer to hold previous accelerometer measurements with [x][y], and x holding values for each axis
+float accelBuffer1[3][accNum];
+float accelBuffer2[3][accNum];
+// Buffer to hold previous gyroscope measurements with [x][y], and x holds values for each axis
+float gyroBuffer1[3][accNum];
+float gyroBuffer2[3][accNum];
+// Index variable to keep track of [y] place in accelBuffer and gyroBuffer
+// (y1, y2 are not permitted because they are being used by Math.h apparently)
+int x1 = 0;
+int x2 = 0;
+// State variable to determine if first time running through filter
+int startup1 = 0;
+int startup2 = 0;
+
+/*========== START ==========*/
 /*========== Setup ==========*/
 void setup() {
   Serial.begin(9600); // Initiate serial communication at 9600 BAUD
   Wire.begin();       // Initiate Wire library
   delay(100);         // delay 100 milliseconds for startup
   
-  // Configure sensor with default settings
+  // Configure MPU-6050's with default settings
   configSensor(MPU_SLAVE_ADDR_1, PWR_MGMT_1, NRML_PWR);
+  configSensor(MPU_SLAVE_ADDR_2, PWR_MGMT_1, NRML_PWR);
 
   // Set up GPIO
-  pinMode(led, OUTPUT);   // LED pin as output
+  pinMode(Power, OUTPUT);   // Power pin for strain gauges
   // Note: reading from analog pins does not require pinMode()
-  digitalWrite(led, HIGH);
+  digitalWrite(Power, HIGH);
   
-  // Particle Cloud Variables, Functions, and Publishing
-  Particle.variable("containerWeight", sgRawValue); // Declare Particle.variable to access value from the cloud
-  sprintf(weightStr, "%d", sgRawValue);
-  Particle.variable("StringWeight", weightStr);
-  Particle.publish("dumpster-loading", weightStr, PRIVATE);
-  Particle.function("led", ledToggle);
-  // Variables to hold current angle estimates
-  sprintf(angleX, "%f", angles[0]);
-  sprintf(angleY, "%f", angles[1]);
-  sprintf(angleZ, "%f", angles[2]);
-  Particle.variable("angleX", angleX);
-  Particle.variable("angleY", angleY);
-  Particle.variable("angleZ", angleZ);
-  // Functions to use when wanting fresh data
-  //Particle.function("sensorRead", sensorRead);
+  // Particle Cloud Variables, Functions, and Publishing  
+  // Update strain gauge variables
+  sprintf(sgLi1, "%d", sgValLi1);
+  sprintf(sgLi2, "%d", sgValLi2);
+  sprintf(sgLo1, "%d", sgValLo1);
+  sprintf(sgRi1, "%d", sgValRi1);
+  sprintf(sgRi2, "%d", sgValRi2);
+  sprintf(sgRo1, "%d", sgValRo1);
+  Particle.publish("sgLi1", sgLi1, PRIVATE);
+  Particle.publish("sgLi2", sgLi2, PRIVATE);
+  Particle.publish("sgLo1", sgLo1, PRIVATE);
+  Particle.publish("sgRi1", sgRi1, PRIVATE);
+  Particle.publish("sgRi2", sgRi2, PRIVATE);
+  Particle.publish("sgRo1", sgRo1, PRIVATE); 
+  Particle.variable("sgLi1", sgValLi1); 
+  Particle.variable("sgLi2", sgValLi2); 
+  Particle.variable("sgLo1", sgValLo1); 
+  Particle.variable("sgRi1", sgValRi1); 
+  Particle.variable("sgRi2", sgValRi2); 
+  Particle.variable("sgRo1", sgValRo1); 
 
+  // Update angle variables
+  sprintf(angleStr1, "%f, %f, %f", angles1[0], angles1[1], angles1[2]);
+  sprintf(angleStr2, "%f, %f, %f", angles2[0], angles2[1], angles2[2]);
+  Particle.variable("angles1", angleStr1);
+  Particle.variable("angles2", angleStr2);
+  Particle.publish("angleStr1", angleStr1, PRIVATE);
+  Particle.publish("angleStr2", angleStr2, PRIVATE);
 }
 
 /*========== Main Loop ===========*/
-void loop() {
-  // Analog read and conversion
-  sgRawValue = analogRead(sgPin);  // read the analogPin
-  sgWeight = 2.1*(((float) sgRawValue/4095)*3.3); // AnalogRead ranges from 0-4095, so we must convert to a voltage between 0-3.3 and multiply by sensitivity coefficient
-  
-  // Averaging for strain gauge values
-  // Subtract last value from current sum
-  sum = sum - sgBuff[x];
-  // Read the input pin
-  sgBuff[x] = analogRead(sgPin);
-  // Analog output voltage ranges from 0-3.5, but analogRead references against 5, so put in new reference, and multiply by sensing coefficient
-  sgBuff[x] = sensCoeff*((sgBuff[x]/5)*3.5);
-  // Add new reading to running total
-  sum = sum + sgBuff[x]; 
-  // Increment place in buffer
-  x = x + 1;
+void loop(){
+  // Get 20 readings at a time; average and filter data
+  for(int i = 0; i < 20; i++){
+    // Analog read and conversion
+    strainGaugeRead(sgPinLi1, sgBuffLi1, sgXLi1, sgValLi1);
+    strainGaugeRead(sgPinLi2, sgBuffLi2, sgXLi2, sgValLi2);
+    strainGaugeRead(sgPinLo1, sgBuffLo1, sgXLo1, sgValLo1);
+    strainGaugeRead(sgPinRi1, sgBuffRi1, sgXRi1, sgValRi1);
+    strainGaugeRead(sgPinRi2, sgBuffRi2, sgXRi2, sgValRi2);
+    strainGaugeRead(sgPinRo1, sgBuffRo1, sgXRo1, sgValRo1);  
+    
+    // Read in data from MPU-6050's
+    result = sensorRead(MPU_SLAVE_ADDR_1, accelData1, temp_C1, gyroData1);
+    result = sensorRead(MPU_SLAVE_ADDR_2, accelData2, temp_C2, gyroData2);
 
-  // If we reach the end of our buffer, reset it to 0
-  if (x >= 20)
-  {
-    x = 0;
+    // Filter data and determine global angular orientation
+    filterData(accelData1, accelBuffer1, gyroData1, gyroBuffer2, x1, startup1, angles1); 
+    filterData(accelData2, accelBuffer2, gyroData2, gyroBuffer2, x2, startup2, angles2);
   }
-  
-  // Calculate value average
-  avgVal = sum/20;
 
   // Particle Event Publishing
-  sprintf(weightStr, "%d", sgRawValue);  // Update string variables
-  Particle.publish("dumpster-loading", weightStr, PRIVATE); // Publish data as event to Particle Cloud
+  // Update strain gauge variables
+  sprintf(sgLi1, "%d", sgValLi1);
+  sprintf(sgLi2, "%d", sgValLi2);
+  sprintf(sgLo1, "%d", sgValLo1);
+  sprintf(sgRi1, "%d", sgValRi1);
+  sprintf(sgRi2, "%d", sgValRi2);
+  sprintf(sgRo1, "%d", sgValRo1);
+  Particle.publish("sgLi1", sgLi1, PRIVATE);
+  Particle.publish("sgLi2", sgLi2, PRIVATE);
+  Particle.publish("sgLo1", sgLo1, PRIVATE);
+  Particle.publish("sgRi1", sgRi1, PRIVATE);
+  Particle.publish("sgRi2", sgRi2, PRIVATE);
+  Particle.publish("sgRo1", sgRo1, PRIVATE);
   
-  // Read in data from MPU-6050
-  result = sensorRead(MPU_SLAVE_ADDR_1, accelData, temp_C, gyroData);
+  // Update angle variables
+  sprintf(angleStr1, "%f, %f, %f", angles1[0], angles1[1], angles1[2]);
+  sprintf(angleStr2, "%f, %f, %f", angles2[0], angles2[1], angles2[2]);
+  Particle.publish("angleStr1", angleStr1, PRIVATE);
+  Particle.publish("angleStr2", angleStr2, PRIVATE); 
 
-  // Filter data and determine global angular orientation
-  filterData(accelData, gyroData, startup, estimates, angles);  
+  delay(timestep);  // Wait ten seconds
 
-  // Print data to the serial monitor
-  // Strain gauge
-  Serial.printlnf("%d", avgVal);
-
-  // Angles
-  Serial.printlnf("%f", angles[0]);
-  Serial.printlnf("%f", angles[1]);
-  Serial.printlnf("%f", angles[2]);
-  Serial.println();
-  sprintf(angleX, "%f", angles[0]);
-  sprintf(angleY, "%f", angles[1]);
-  sprintf(angleZ, "%f", angles[2]);
-
-  delay(timestep);  // Wait one millisecond
+  /*
+  // Sleep config requires pin+time - D3 (with nothing connected) and rising edge, for 5 minutes (300s) with SLEEP_NETWORK_STANDBY
+  config.mode(SystemSleepMode::STOP)
+        .gpio(D3, RISING)
+        .duration(300s)
+        .network(NETWORK_INTERFACE_CELLULAR);
+  SystemSleepResult result = System.sleep(config);
+  */
 }

@@ -4,38 +4,44 @@
 #define _PERIPHERALFUNCTIONS_H
 
 /*========== Relevant Addresses and Commands ==========*/
-const int led = D7;           // LED pin on Boron development board
-const int sgPin = A0;         // Strain Gauge pin for analogRead
+const int Power = D2;                   // Power pin for strain gauges since they require consistent excitation and 3v3 is inconsistent
 const int MPU_SLAVE_ADDR_1 = 0x68;      // I2C address of MPU-6050 if AD0 pin is set low (if set high, 0x69)
+const int MPU_SLAVE_ADDR_2 = 0x69;      // I2C address of MPU-6050 if AD0 pin is set low (if set high, 0x69)
 const int PWR_MGMT_1 = 0x6B;            // Power management register address for MPU-6050 wakeup calls
 const int NRML_PWR = 0;                 // Send 0 for normal mode on wakeup
 const int ACCEL_REG_ADDR = 0x3B;        // I2C address of ACCEL_XOUT_H
 
 /*========== Communication Variables ==========*/
-const float timestep = 100;             // Determines how quickly main loop cycles [ms]
+const float timestep = 10000;           // Determines how quickly main loop cycles [ms]
 int result = 0;                         // Result to be returned at end of certain functions
 
-
-/*========== Data Variables ==========*/
-// Constants
+/*========== Accelerometer and Gyroscope Sensor Data Variables ==========*/
 const float accelSensitivity2g = 16384;         // Sensitivity of the accelerometer at +/-2g [LSB/g]
 const float gyroSensitivity250 = 131;           // Resolution of the gyroscope at +/-250deg/s [LSB/deg/s]
 const float tempSensitivityUntrimmed = 340;     // Sensitivity of the temperature sensor when untrimmed at 340 [LSB/deg C]
 const float tempOffset = 36.53;                 // Offset value needed for calculating temperature in deg C
-float accelMagnitude = 0;                       // Holds magnitude of accelerometer gravity vector
 const float accelCalibration_1[3] = {0.00821783, 0.285622844, 0.160379276};  // Calibration values for accelerometer on slave device 1
 const float gyroCalibration_1[3] = {3.396479224, 0.218546759, -1.138894073};    // Calibration values for gyroscope on slave device 1
-const int num = 5;          // length of buffers used to hold previous measurements
-float accelBuffer[3][num];  // Buffer to hold previous accelerometer measurements with [x][y], x holds values for each axis
-float gyroBuffer[3][num];   // Buffer to hold previous gyroscope measurements with [x][y], x holds values for each axis
-int y = 0;                  // Index variable to keep track of [y] place in accelBuffer and gyroBuffer
-int startup = 0;            // State variable to determine if first time running through filter
-float estimates[3];               // Vector to hold current angle estimates
+const int accNum = 20;      // length of buffers used to hold previous measurements
+float accelMagnitude = 0;                       // Holds magnitude of accelerometer gravity vector
+float estimates[3];         // Vector to hold current angle estimates
 float sumAccel[3];          // Sum of all values in accelBuffer
 float sumGyro[3];           // Sum of all values in gyroBuffer
 float avgAccel[3];          // Average of all values in accelBuffer
 float avgGyro[3];           // Average of all values in gyroBuffer
-float angles[3];            // Angles about each axis determined from accelerometer
+float accelBuffer[3][accNum];   // Holds previous accelerometer readings for use when filtering
+float gyroBuffer[3][accNum];    // Holds previous gyroscope readings for use when filtering
+
+/*========== Strain Gauge Data Variables ==========*/
+const float sensCoeff = 2.1;  // Coefficient for converting sgRawValue to real-world weight value (from datasheet)
+const int sgPinLi1 = A2;        // Strain Gauge pin for analogRead
+const int sgPinLi2 = A0;        // Strain Gauge pin for analogRead
+const int sgPinLo1 = A1;        // Strain Gauge pin for analogRead
+const int sgPinRi1 = A3;        // Strain Gauge pin for analogRead
+const int sgPinRi2 = A5;        // Strain Gauge pin for analogRead
+const int sgPinRo1 = A4;        // Strain Gauge pin for analogRead
+const int sgNum = 20;           // Number of values to be held in strain gauge buffer of previous readings
+int sumSG = 0;                  // Sum of all values in each strain gauge buffer
 
 /*========== Configure MPU-6050 ==========*/
 void configSensor(int slaveAddress, int subAddress, int data){
@@ -120,7 +126,6 @@ int sensorRead(int slaveAddress, float *accelData, float &temp, float *gyroData)
     else{
         zGyrRaw = -(zGyrRaw - 65536);
     }
-    
     xGyrRaw = -xGyrRaw;     // Needed to align accelerometer and gyroscope axes (x originally inverted)
     
     // Convert raw data into real-world value, cast as a float, and store in external variable
@@ -136,18 +141,19 @@ int sensorRead(int slaveAddress, float *accelData, float &temp, float *gyroData)
     // Calibrate Data
     accelMagnitude = sqrt(sq(accelData[0]) + sq(accelData[1]) + sq(accelData[2]));
     for( int i = 0; i < 3; i++){
-        accelData[i] = accelData[i] + accelCalibration_1[i];    // Calibrate accelerometer data with offset
+        accelData[i] = accelData[i] + accelCalibration_1[i];  // Calibrate accelerometer data with offset
         gyroData[i] = gyroData[i] + gyroCalibration_1[i];     // Calibrate gyroscope data with offset
     }
     return result;
 }
 
 /*========== Filter accelerometer data using gyroscope data ==========*/
-void  filterData(float *accelData, float *gyroData, int &startup, float *estimates, float *angles){
+// When passing 2D arrays to a function, reference: https://www.tutorialspoint.com/Passing-two-dimensional-array-to-a-Cplusplus-function
+void  filterData(float *accData, float accelBuffer[][accNum], float *gyrData, float gyroBuffer[][accNum], int &y, int &startup, float *angles){
     // Store new sensor values in buffers
     for(int i = 0; i < 3; i++){
-            accelBuffer[i][y] = accelData[i];   // Store newest accelData values in first line of buffer
-            gyroBuffer[i][y] = gyroData[i];     // Store newest gyroData values in first line of buffer
+            accelBuffer[i][y] = accData[i];   // Store newest accelData values in first line of buffer
+            gyroBuffer[i][y] = gyrData[i];     // Store newest gyroData values in first line of buffer
         }
    
     // If this is the first time running the filter, there is no old data, so our best estimate is based on our current data
@@ -163,22 +169,23 @@ void  filterData(float *accelData, float *gyroData, int &startup, float *estimat
         // Take the average of each row element in accelBuffer and gyroBuffer
         // Work through x, y, z elements
         for(int i = 0; i < 3; i++){
+            // Reset sum buffers
+            sumAccel[i] = 0;    
+            sumGyro[i] = 0;
+
             // Sum all values in each column
-            for(int x = 0; x < num; x++){
+            for(int x = 0; x < accNum; x++){
             sumAccel[i] += accelBuffer[i][x];
             sumGyro[i] += gyroBuffer[i][x];
             }
+
             // Now take the average
-            avgAccel[i] = sumAccel[i]/((float) num);
-            avgGyro[i] = sumGyro[i]/((float) num);
+            avgAccel[i] = sumAccel[i]/((float) accNum);
+            avgGyro[i] = sumGyro[i]/((float) accNum);
 
             // Take a weighted average of accelerometer and gyroscope values to account for drift and random variances
             //estimates[i] = (avgAccel[i]*0.98) + (avgGyro[i]*(timestep/1000))*0.02; 
             estimates[i] = avgAccel[i];
-
-            // Reset sumAccel and sumGyro for next iteration
-            sumAccel[i] = 0;
-            sumGyro[i] = 0;
         }
 
         // Calculate angles based on estimate
@@ -189,25 +196,26 @@ void  filterData(float *accelData, float *gyroData, int &startup, float *estimat
         y++;    // Increment row in accelBuffer and gyroBuffer to prepare for next iteration
         
         // If we reach the end of the buffers, reset to 0
-        if(y >= num){
+        if(y >= accNum){
             y = 0;
         }
     }
 }
 
-/*========== Toggle the LED on or off depending on the given command ==========*/
-int ledToggle(String command) {
-    if (command == "on") {
-        digitalWrite(led, HIGH);
-        return 1;
+/*========== Read in and average values from strain gauges ==========*/
+void strainGaugeRead(int sgPin, int *sgBuff, int &sgX, int &sgVal){
+    sgBuff[sgX] = analogRead(sgPin);    // Place new reading at current index in buffer for averaging
+    sumSG = 0;                            // Reset sum value
+    // For the entire buffer, iterate through and sum all values
+    for(int i = 0; i < sgNum; i++){
+        sumSG = sumSG + sgBuff[i];
     }
-    else if (command == "off") {
-        digitalWrite(led, LOW);
-        return 0;
+    sgX = sgX + 1;      // Increment index in buffer for next value saving
+    // If we reach the end of the buffer, reset the value to the beginning
+    if(sgX >= sgNum){
+        sgX = 0;
     }
-    else {
-        return -1;
-    }
+    sgVal = sumSG/sgNum;  // Divide sum by number of values in buffer to calculate average
 }
 
 #endif // _PERIPHERALFUNCTIONS_H
