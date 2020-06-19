@@ -24,8 +24,9 @@ SystemSleepConfiguration config;    // Create instantiation of sleep configurati
 
 /*========== Particle Data Variables ==========*/
 // MPU-6050 strings for Particle Cloud Events
-char angleStr1[50];
-char angleStr2[50];
+char angle1X[10];
+char angle1Y[10];
+char angle1Z[10];
 // Strain gauge strings for Particle Cloud events
 char sgLi1[5];
 char sgLi2[5];
@@ -109,11 +110,17 @@ void setup() {
   sprintf(sgRi2, "%d", sgValRi2);
   sprintf(sgRo1, "%d", sgValRo1);
   Particle.publish("sgLi1", sgLi1, PRIVATE);
+  delay(1500);
   Particle.publish("sgLi2", sgLi2, PRIVATE);
+  delay(1500);
   Particle.publish("sgLo1", sgLo1, PRIVATE);
+  delay(1500);
   Particle.publish("sgRi1", sgRi1, PRIVATE);
+  delay(1500);
   Particle.publish("sgRi2", sgRi2, PRIVATE);
-  Particle.publish("sgRo1", sgRo1, PRIVATE); 
+  delay(1500);
+  Particle.publish("sgRo1", sgRo1, PRIVATE);
+  delay(1500); 
   Particle.variable("sgLi1", sgValLi1); 
   Particle.variable("sgLi2", sgValLi2); 
   Particle.variable("sgLo1", sgValLo1); 
@@ -122,12 +129,18 @@ void setup() {
   Particle.variable("sgRo1", sgValRo1); 
 
   // Update angle variables
-  sprintf(angleStr1, "%f, %f, %f", angles1[0], angles1[1], angles1[2]);
-  sprintf(angleStr2, "%f, %f, %f", angles2[0], angles2[1], angles2[2]);
-  Particle.variable("angles1", angleStr1);
-  Particle.variable("angles2", angleStr2);
-  Particle.publish("angleStr1", angleStr1, PRIVATE);
-  Particle.publish("angleStr2", angleStr2, PRIVATE);
+  sprintf(angle1X, "%f", angles1[0]);
+  sprintf(angle1Y, "%f", angles1[1]);
+  sprintf(angle1Z, "%f", angles1[2]);
+  Particle.publish("angle1X", angle1X, PRIVATE);
+  delay(1500);
+  Particle.publish("angle1Y", angle1Y, PRIVATE);
+  delay(1500);
+  Particle.publish("angle1Z", angle1Z, PRIVATE);
+  delay(1500);
+  Particle.variable("angle1X", angle1X);
+  Particle.variable("angle1Y", angle1Y);
+  Particle.variable("angle1Z", angle1Z);
 }
 
 /*========== Main Loop ===========*/
@@ -159,18 +172,30 @@ void loop(){
   sprintf(sgRi1, "%d", sgValRi1);
   sprintf(sgRi2, "%d", sgValRi2);
   sprintf(sgRo1, "%d", sgValRo1);
+
   Particle.publish("sgLi1", sgLi1, PRIVATE);
+  delay(15000);
   Particle.publish("sgLi2", sgLi2, PRIVATE);
+  delay(15000);
   Particle.publish("sgLo1", sgLo1, PRIVATE);
+  delay(15000);
   Particle.publish("sgRi1", sgRi1, PRIVATE);
+  delay(15000);
   Particle.publish("sgRi2", sgRi2, PRIVATE);
+  delay(15000);
   Particle.publish("sgRo1", sgRo1, PRIVATE);
+  delay(15000);
   
   // Update angle variables
-  sprintf(angleStr1, "%f, %f, %f", angles1[0], angles1[1], angles1[2]);
-  sprintf(angleStr2, "%f, %f, %f", angles2[0], angles2[1], angles2[2]);
-  Particle.publish("angleStr1", angleStr1, PRIVATE);
-  Particle.publish("angleStr2", angleStr2, PRIVATE); 
+  sprintf(angle1X, "%f", angles1[0]);
+  sprintf(angle1Y, "%f", angles1[1]);
+  sprintf(angle1Z, "%f", angles1[2]);
+  Particle.publish("angle1X", angle1X, PRIVATE);
+  delay(1500);
+  Particle.publish("angle1Y", angle1Y, PRIVATE);
+  delay(1500);
+  Particle.publish("angle1Z", angle1Z, PRIVATE);
+  delay(1500);
 
   delay(timestep);  // Wait ten seconds
 

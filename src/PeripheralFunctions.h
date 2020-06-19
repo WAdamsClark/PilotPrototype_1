@@ -34,12 +34,12 @@ float gyroBuffer[3][accNum];    // Holds previous gyroscope readings for use whe
 
 /*========== Strain Gauge Data Variables ==========*/
 const float sensCoeff = 2.1;  // Coefficient for converting sgRawValue to real-world weight value (from datasheet)
-const int sgPinLi1 = A2;        // Strain Gauge pin for analogRead
-const int sgPinLi2 = A0;        // Strain Gauge pin for analogRead
-const int sgPinLo1 = A1;        // Strain Gauge pin for analogRead
-const int sgPinRi1 = A3;        // Strain Gauge pin for analogRead
-const int sgPinRi2 = A5;        // Strain Gauge pin for analogRead
-const int sgPinRo1 = A4;        // Strain Gauge pin for analogRead
+const int sgPinLi1 = A4;        // Strain Gauge pin for analogRead
+const int sgPinLi2 = A5;        // Strain Gauge pin for analogRead
+const int sgPinLo1 = A3;        // Strain Gauge pin for analogRead
+const int sgPinRi1 = A0;        // Strain Gauge pin for analogRead
+const int sgPinRi2 = A1;        // Strain Gauge pin for analogRead
+const int sgPinRo1 = A2;        // Strain Gauge pin for analogRead
 const int sgNum = 20;           // Number of values to be held in strain gauge buffer of previous readings
 int sumSG = 0;                  // Sum of all values in each strain gauge buffer
 
